@@ -1,0 +1,591 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Countryball Attack</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: 'Courier New', Courier, monospace; touch-action: none; }
+        #gameCanvas { display: block; background-color: #2c3e50; image-rendering: pixelated; }
+        .ui-panel { position: absolute; color: white; pointer-events: none; text-shadow: 3px 3px 0px #000; z-index: 10; width: 100%; padding: 15px; box-sizing: border-box; display: flex; justify-content: space-between; align-items: flex-start; }
+        
+        /* Mobile Controls */
+        #joystick-container { position: absolute; bottom: 30px; left: 30px; width: 120px; height: 120px; background: rgba(0,0,0,0.3); border: 4px solid rgba(255,255,255,0.5); border-radius: 50%; display: none; pointer-events: auto; }
+        #joystick-knob { position: absolute; top: 30px; left: 30px; width: 60px; height: 60px; background: #fff; border-radius: 50%; box-shadow: 0 4px 0 #ccc; }
+        
+        #btn-group { position: absolute; bottom: 30px; right: 30px; display: none; gap: 20px; flex-direction: column; align-items: center; pointer-events: auto; }
+        .action-btn { width: 90px; height: 90px; border-radius: 50%; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; font-weight: 900; box-shadow: 0 6px 0 rgba(0,0,0,0.5); user-select: none; -webkit-tap-highlight-color: transparent; border: 6px solid #fff; transition: all 0.2s; }
+        #attack-btn { background: #e74c3c; }
+        #dash-btn { background: #f1c40f; color: #000; height: 80px; width: 80px; font-size: 0.7rem; }
+        #dash-btn.cooldown { background: #555; color: #aaa; opacity: 0.7; box-shadow: none; transform: translateY(3px); }
+        .action-btn:active:not(.cooldown) { transform: translateY(3px); box-shadow: 0 3px 0 rgba(0,0,0,0.5); }
+
+        .shop-btn { pointer-events: auto; background: #f1c40f; color: black; padding: 5px 15px; font-weight: 900; border-bottom: 4px solid #b7950b; font-size: 0.9rem; }
+        #dash-timer { font-size: 1.2rem; font-weight: 900; }
+        .version-tag { position: fixed; bottom: 5px; left: 5px; color: rgba(255,255,255,0.2); font-size: 0.6rem; z-index: 5; pointer-events: none; }
+        
+        /* Floating Text Effect */
+        .score-pop { position: absolute; color: #f1c40f; font-weight: 900; pointer-events: none; animation: floatUp 1s ease-out forwards; z-index: 20; text-shadow: 2px 2px 0 #000; }
+        @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-50px); opacity: 0; } }
+    </style>
+</head>
+<body>
+
+    <div class="ui-panel">
+        <div class="flex flex-col gap-1">
+            <h1 class="text-xl md:text-2xl font-black italic leading-none">COUNTRYBALL ATTACK</h1>
+            <div class="text-xs text-white/50">By Plunger Teams</div>
+            <div class="text-lg md:text-xl text-green-400 font-bold mt-1">HP: <span id="health">150</span> / 150</div>
+        </div>
+
+        <div class="flex flex-col items-end gap-1">
+            <div class="text-xl md:text-2xl font-bold bg-black/30 px-3 py-1 rounded">SCORE: <span id="score">0</span></div>
+            <button id="shop-trigger" class="shop-btn">M-STORE [P]</button>
+        </div>
+    </div>
+
+    <div class="version-tag">v1.0 BETA</div>
+
+    <!-- Shop Overlay -->
+    <div id="shop-overlay" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center">
+        <div class="bg-blue-900 border-8 border-white p-8 text-white text-center max-w-sm w-full mx-4">
+            <h2 class="text-4xl font-black mb-6 italic text-yellow-400">M-STORE</h2>
+            <div class="bg-black/40 p-6 border-2 border-blue-400">
+                <p class="text-xl font-bold">MEDKIT (+75 HP)</p>
+                <p class="text-yellow-400 mb-4 font-bold">COST: <span id="medkit-price">100</span> PTS</p>
+                <button id="buy-medkit" class="bg-white text-black px-10 py-3 font-black text-xl active:scale-95">BUY</button>
+            </div>
+            <button id="shop-close" class="mt-6 underline opacity-60 pointer-events-auto">BACK TO GAME</button>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-80 z-20">
+        <div class="text-center text-white p-8 md:p-12 border-8 border-white bg-blue-900 shadow-2xl max-w-lg mx-4">
+            <h2 class="text-4xl md:text-6xl font-black mb-4 italic leading-tight">COUNTRYBALL ATTACK</h2>
+            <p class="text-yellow-400 font-bold mb-2">A guy named Manigos fighting off countryballs</p>
+            <p class="mb-8 tracking-tighter text-white/70 uppercase text-xs md:text-sm">Made by Plunger Teams • v1.0 Beta</p>
+            <button id="start-btn" class="bg-white text-black px-12 py-4 text-2xl font-black hover:bg-yellow-400 transition-all active:scale-95">START MISSION</button>
+        </div>
+    </div>
+
+    <!-- Game Over -->
+    <div id="game-over" class="absolute inset-0 flex items-center justify-center bg-red-900 bg-opacity-95 z-30 hidden">
+        <div class="text-center text-white p-6">
+            <h2 class="text-6xl md:text-8xl font-black mb-4">DEFEATED</h2>
+            <p class="text-2xl mb-10">Final Score: <span id="final-score">0</span></p>
+            <button onclick="location.reload()" class="bg-white text-red-900 px-12 py-4 text-xl font-black active:scale-95">RETRY</button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="joystick-container"><div id="joystick-knob"></div></div>
+    
+    <div id="btn-group">
+        <div id="dash-btn" class="action-btn">
+            <span>DASH</span>
+            <span id="dash-timer"></span>
+        </div>
+        <div id="attack-btn" class="action-btn">ATTACK</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const WORLD_SIZE = 5000;
+        
+        let score = 0;
+        let medkitPrice = 100;
+        let gameActive = false;
+        let isPaused = false;
+        let lastTime = 0;
+        let spawnTimer = 0;
+
+        const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        if (isTouch) {
+            document.getElementById('joystick-container').style.display = 'block';
+            document.getElementById('btn-group').style.display = 'flex';
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function createScorePop(x, y, val) {
+            const el = document.createElement('div');
+            el.className = 'score-pop';
+            el.innerText = `+${val}`;
+            el.style.left = (x - camera.x) + 'px';
+            el.style.top = (y - camera.y) + 'px';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 1000);
+        }
+
+        function toggleShop() {
+            if (!gameActive) return;
+            isPaused = !isPaused;
+            document.getElementById('shop-overlay').classList.toggle('hidden', !isPaused);
+        }
+        document.getElementById('shop-trigger').onclick = toggleShop;
+        document.getElementById('shop-close').onclick = toggleShop;
+        document.getElementById('buy-medkit').onclick = () => {
+            if (score >= medkitPrice) {
+                score -= medkitPrice;
+                player.health = Math.min(player.maxHealth, player.health + 75);
+                medkitPrice += 100;
+                document.getElementById('score').innerText = score;
+                document.getElementById('medkit-price').innerText = medkitPrice;
+                document.getElementById('health').innerText = Math.floor(player.health);
+            }
+        };
+
+        const keys = {};
+        window.addEventListener('keydown', e => {
+            keys[e.key.toLowerCase()] = true;
+            if(e.key.toLowerCase() === 'p') toggleShop();
+            if(e.key === ' ' ) player.startDash();
+        });
+        window.addEventListener('keyup', e => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        let mouse = { x: 0, y: 0 };
+        window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+
+        let joystick = { active: false, x: 0, y: 0, startX: 0, startY: 0 };
+        const jContainer = document.getElementById('joystick-container');
+        const jKnob = document.getElementById('joystick-knob');
+        
+        jContainer.addEventListener('touchstart', e => {
+            joystick.active = true;
+            const rect = jContainer.getBoundingClientRect();
+            joystick.startX = rect.left + rect.width/2;
+            joystick.startY = rect.top + rect.height/2;
+        });
+        jContainer.addEventListener('touchmove', e => {
+            if (!joystick.active) return;
+            const touch = e.touches[0];
+            let dx = touch.clientX - joystick.startX;
+            let dy = touch.clientY - joystick.startY;
+            const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 45);
+            const angle = Math.atan2(dy, dx);
+            joystick.x = Math.cos(angle) * (dist/45);
+            joystick.y = Math.sin(angle) * (dist/45);
+            jKnob.style.transform = `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist}px)`;
+        });
+        jContainer.addEventListener('touchend', () => {
+            joystick.active = false; joystick.x = 0; joystick.y = 0;
+            jKnob.style.transform = `translate(0,0)`;
+        });
+
+        document.getElementById('attack-btn').addEventListener('touchstart', (e) => {
+            e.preventDefault(); player.attack();
+        });
+        document.getElementById('dash-btn').addEventListener('touchstart', (e) => {
+            e.preventDefault(); player.startDash();
+        });
+        
+        window.addEventListener('mousedown', (e) => { 
+            if(gameActive && !isPaused && e.target.closest('.action-btn') === null && e.target.id !== 'shop-trigger') player.attack(); 
+        });
+
+        class Player {
+            constructor() {
+                this.x = WORLD_SIZE/2; this.y = WORLD_SIZE/2;
+                this.radius = 20; 
+                this.maxHealth = 150;
+                this.health = 150; 
+                this.speed = 10;
+                this.angle = 0; 
+                this.isAttacking = false; 
+                this.attackTimer = 0;
+                this.attackAngle = 0;
+                this.bob = 0;
+                
+                this.isDashing = false;
+                this.dashAngle = 0;
+                this.dashSpeed = 22;
+                this.dashDuration = 15;
+                this.dashElapsed = 0;
+                this.dashCooldown = 0; 
+            }
+
+            startDash() {
+                if (isPaused || this.dashCooldown > 0 || this.isDashing) return;
+                this.isDashing = true;
+                this.dashElapsed = 0;
+                this.dashAngle = this.angle;
+                this.attack(); 
+            }
+
+            update() {
+                if (isPaused) return;
+
+                if (this.dashCooldown > 0) {
+                    this.dashCooldown--;
+                    const seconds = (this.dashCooldown / 60).toFixed(1);
+                    document.getElementById('dash-timer').innerText = seconds > 0 ? seconds : '';
+                    document.getElementById('dash-btn').classList.toggle('cooldown', this.dashCooldown > 0);
+                } else {
+                    document.getElementById('dash-timer').innerText = '';
+                    document.getElementById('dash-btn').classList.remove('cooldown');
+                }
+                
+                let vx = 0, vy = 0;
+
+                if (this.isDashing) {
+                    vx = Math.cos(this.dashAngle);
+                    vy = Math.sin(this.dashAngle);
+                    this.x += vx * this.dashSpeed;
+                    this.y += vy * this.dashSpeed;
+                    this.bob += 0.6;
+                    
+                    this.dashElapsed++;
+                    if (this.dashElapsed >= this.dashDuration) {
+                        this.isDashing = false;
+                        this.dashCooldown = 300; 
+                    }
+                } else {
+                    if (keys['w']) vy -= 1; if (keys['s']) vy += 1;
+                    if (keys['a']) vx -= 1; if (keys['d']) vx += 1;
+                    if (joystick.active) { vx = joystick.x; vy = joystick.y; }
+
+                    if (vx !== 0 || vy !== 0) {
+                        const m = Math.sqrt(vx*vx + vy*vy);
+                        const dx = (vx/m) * this.speed;
+                        const dy = (vy/m) * this.speed;
+                        
+                        let canMoveX = true;
+                        let canMoveY = true;
+                        for (let e of enemies) {
+                            const dX = Math.sqrt((this.x + dx - e.x)**2 + (this.y - e.y)**2);
+                            const dY = Math.sqrt((this.x - e.x)**2 + (this.y + dy - e.y)**2);
+                            if (dX < this.radius + e.radius) canMoveX = false;
+                            if (dY < this.radius + e.radius) canMoveY = false;
+                        }
+
+                        if (canMoveX) this.x += dx;
+                        if (canMoveY) this.y += dy;
+                        
+                        this.bob += 0.3;
+                    }
+
+                    if (isTouch) {
+                        if (joystick.active) this.angle = Math.atan2(joystick.y, joystick.x);
+                    } else {
+                        this.angle = Math.atan2((mouse.y + camera.y) - this.y, (mouse.x + camera.x) - this.x);
+                    }
+                }
+
+                this.x = Math.max(this.radius, Math.min(WORLD_SIZE - this.radius, this.x));
+                this.y = Math.max(this.radius, Math.min(WORLD_SIZE - this.radius, this.y));
+
+                if (this.isAttacking) {
+                    this.attackTimer += 0.15;
+                    this.checkWeaponTouch();
+                    if (this.attackTimer >= 1) { 
+                        this.isAttacking = false; 
+                        this.attackTimer = 0; 
+                    }
+                }
+            }
+
+            attack() {
+                if (this.isAttacking || isPaused) return;
+                this.isAttacking = true;
+                this.attackTimer = 0;
+                this.attackAngle = this.angle;
+            }
+
+            checkWeaponTouch() {
+                const swingOffset = Math.sin(this.attackTimer * Math.PI) * 1.5 - 0.75;
+                const weaponAngle = this.attackAngle + swingOffset;
+                
+                enemies.forEach(e => {
+                    const dx = e.x - this.x;
+                    const dy = e.y - this.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const angleToEnemy = Math.atan2(dy, dx);
+                    let angleDiff = Math.abs(weaponAngle - angleToEnemy);
+                    if (angleDiff > Math.PI) angleDiff = Math.PI*2 - angleDiff;
+
+                    if (dist < 90 && angleDiff < 1.0 && !e.recentlyHit) {
+                        e.hp -= 45;
+                        e.recentlyHit = true;
+                        e.hitTimer = 10;
+                        e.x += Math.cos(angleToEnemy) * 30;
+                        e.y += Math.sin(angleToEnemy) * 30;
+                        particles.push(...Array(5).fill(0).map(() => new Particle(e.x, e.y, e.type)));
+                    }
+                });
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x - camera.x, this.y - camera.y);
+                const bobOffset = Math.sin(this.bob) * 3;
+                
+                if(this.isDashing) {
+                    ctx.shadowBlur = 30;
+                    ctx.shadowColor = "#f1c40f";
+                    ctx.globalAlpha = 0.8;
+                }
+
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(0, -10 + bobOffset); ctx.lineTo(0, 20 + bobOffset);
+                ctx.moveTo(-15, 5 + bobOffset); ctx.lineTo(15, 5 + bobOffset); ctx.stroke();
+                
+                ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(0, -25 + bobOffset, 12, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                
+                ctx.save();
+                const baseAngle = this.isAttacking ? this.attackAngle : this.angle;
+                ctx.rotate(baseAngle); 
+                if (this.isAttacking) {
+                    const swing = Math.sin(this.attackTimer * Math.PI) * 1.5 - 0.75;
+                    ctx.rotate(swing); 
+                }
+                ctx.beginPath(); ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 6;
+                ctx.moveTo(10, 0); ctx.lineTo(60, 0); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(20, -10); ctx.lineTo(20, 10); ctx.stroke();
+                ctx.restore();
+                
+                ctx.restore();
+            }
+        }
+
+        class Enemy {
+            constructor(x, y, type) {
+                this.x = x; this.y = y; this.type = type;
+                this.radius = 28; this.timer = 0;
+                this.recentlyHit = false; this.hitTimer = 0;
+                this.angle = 0;
+                
+                switch(type) {
+                    case 'RUSSIA': this.hp = 150; this.speed = 2.5; this.points = 25; break;
+                    case 'USA': this.hp = 120; this.speed = 3.0; this.points = 20; break;
+                    case 'UK': this.hp = 100; this.speed = 3.5; this.points = 15; break;
+                    case 'FRANCE': this.hp = 80; this.speed = 4.0; this.points = 12; break;
+                    case 'JAPAN': this.hp = 80; this.speed = 4.5; this.points = 12; break;
+                    case 'POLAND': this.hp = 60; this.speed = 4.0; this.points = 10; break;
+                    default: this.hp = 100; this.speed = 3.0; this.points = 15;
+                }
+            }
+            update() {
+                if (isPaused) return;
+                const dx = player.x - this.x, dy = player.y - this.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                this.angle = Math.atan2(dy, dx);
+
+                if (dist > (this.radius + player.radius)) {
+                    this.x += (dx/dist) * this.speed;
+                    this.y += (dy/dist) * this.speed;
+                }
+
+                this.timer++;
+                if (this.hitTimer > 0) this.hitTimer--;
+                else this.recentlyHit = false;
+
+                if (dist < this.radius + 30 && !player.isDashing) {
+                    player.health -= 0.15;
+                    document.getElementById('health').innerText = Math.max(0, Math.floor(player.health));
+                }
+
+                if (this.type === 'RUSSIA' && this.timer % 140 === 0) projectiles.push(new Proj(this.x, this.y, dx/dist, dy/dist, 'vodka'));
+                if (this.type === 'USA' && this.timer % 160 === 0) projectiles.push(new Proj(this.x, this.y, dx/dist, dy/dist, 'bullet'));
+            }
+            draw() {
+                const dx = this.x - camera.x, dy = this.y - camera.y;
+                if (dx < -150 || dx > canvas.width + 150) return;
+                
+                ctx.save(); ctx.translate(dx, dy);
+                const sway = Math.sin(this.timer * 0.1) * 0.1;
+                const squash = this.recentlyHit ? 1.3 : (1 + Math.sin(this.timer * 0.15) * 0.05);
+                ctx.rotate(sway);
+                ctx.scale(squash, 2 - squash);
+
+                ctx.fillStyle = this.recentlyHit ? '#fff' : '#000';
+                ctx.beginPath(); ctx.arc(0, 0, this.radius+2, 0, Math.PI*2); ctx.fill();
+                
+                ctx.save();
+                ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.clip();
+                if (this.type === 'USA') {
+                    ctx.fillStyle='#fff'; ctx.fillRect(-30,-30,60,60);
+                    ctx.fillStyle='#b22234'; for(let i=0;i<7;i++) ctx.fillRect(-30,-30+i*9,60,5);
+                    ctx.fillStyle='#3c3b6e'; ctx.fillRect(-30,-30,30,30);
+                } else if (this.type === 'RUSSIA') {
+                    ctx.fillStyle='#fff'; ctx.fillRect(-30,-30,60,20);
+                    ctx.fillStyle='#0039a6'; ctx.fillRect(-30,-10,60,20);
+                    ctx.fillStyle='#d52b1e'; ctx.fillRect(-30,10,60,20);
+                } else if (this.type === 'JAPAN') {
+                    ctx.fillStyle='#fff'; ctx.fillRect(-30,-30,60,60);
+                    ctx.fillStyle='#bc002d'; ctx.beginPath(); ctx.arc(0,0,13,0,Math.PI*2); ctx.fill();
+                } else if (this.type === 'FRANCE') {
+                    ctx.fillStyle='#0055a4'; ctx.fillRect(-30,-30,20,60);
+                    ctx.fillStyle='#fff'; ctx.fillRect(-10,-30,20,60);
+                    ctx.fillStyle='#ef4135'; ctx.fillRect(10,-30,20,60);
+                } else if (this.type === 'POLAND') {
+                    ctx.fillStyle='#fff'; ctx.fillRect(-30,-30,60,30);
+                    ctx.fillStyle='#dc143c'; ctx.fillRect(-30,0,60,30);
+                } else if (this.type === 'UK') {
+                    ctx.fillStyle='#00247d'; ctx.fillRect(-30,-30,60,60); 
+                    ctx.strokeStyle='#fff'; ctx.lineWidth=10; 
+                    ctx.beginPath(); ctx.moveTo(-30,-30); ctx.lineTo(30,30); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30,-30); ctx.lineTo(-30,30); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0,-30); ctx.lineTo(0,30); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-30,0); ctx.lineTo(30,0); ctx.stroke();
+                    ctx.strokeStyle='#cf142b'; ctx.lineWidth=4; 
+                    ctx.beginPath(); ctx.moveTo(-30,-30); ctx.lineTo(30,30); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(30,-30); ctx.lineTo(-30,30); ctx.stroke();
+                    ctx.lineWidth=6;
+                    ctx.beginPath(); ctx.moveTo(0,-30); ctx.lineTo(0,30); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-30,0); ctx.lineTo(30,0); ctx.stroke();
+                }
+                ctx.restore();
+
+                ctx.save();
+                ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.fillStyle = '#fff';
+                if (this.type === 'USA') {
+                    ctx.fillStyle='#000'; ctx.fillRect(-22, -10, 44, 10); ctx.fillRect(-20, -2, 16, 12); ctx.fillRect(4, -2, 16, 12);
+                } else if (this.type === 'UK') {
+                    ctx.beginPath(); ctx.ellipse(-10, -5, 6, 8, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                    ctx.strokeStyle='#ffd700'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(10, -5, 8, 0, Math.PI*2); ctx.stroke();
+                } else {
+                    ctx.beginPath(); ctx.ellipse(-10, -5, 6, 8, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                    ctx.beginPath(); ctx.ellipse(10, -5, 6, 8, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                }
+                ctx.restore();
+
+                ctx.save();
+                ctx.rotate(this.angle);
+                ctx.translate(35, 10);
+                const wSway = Math.sin(this.timer * 0.2) * 10;
+                ctx.translate(0, wSway/5);
+                if (this.type === 'POLAND') {
+                    ctx.fillStyle='#8b4513'; ctx.fillRect(0, -3, 30, 6);
+                    ctx.fillStyle='#e74c3c'; ctx.beginPath(); ctx.arc(30, 0, 10, -Math.PI/2, Math.PI/2); ctx.fill();
+                } else if (this.type === 'FRANCE') {
+                    ctx.fillStyle='#deb887'; ctx.beginPath(); ctx.ellipse(15, 0, 22, 7, 0, 0, Math.PI*2); ctx.fill();
+                } else if (this.type === 'JAPAN') {
+                    ctx.strokeStyle='#eee'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(40,0); ctx.stroke();
+                } else if (this.type === 'UK') {
+                    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(10, 0, 10, 0, Math.PI, false); ctx.fill();
+                } else if (this.type === 'USA') {
+                    ctx.fillStyle='#333'; ctx.fillRect(0, -5, 25, 10); ctx.fillRect(0, 0, 8, 15);
+                } else if (this.type === 'RUSSIA') {
+                    ctx.fillStyle='#aed6f1'; ctx.fillRect(0, -10, 15, 20); ctx.fillStyle='#fff'; ctx.fillRect(5, -15, 5, 8);
+                }
+                ctx.restore();
+                ctx.restore();
+            }
+        }
+
+        class Proj {
+            constructor(x,y,vx,vy,type) {
+                this.x=x; this.y=y; this.vx=vx*8; this.vy=vy*8; this.type=type; this.life=150;
+            }
+            update() {
+                if(isPaused) return;
+                this.x+=this.vx; this.y+=this.vy; this.life--;
+                const d = Math.sqrt((this.x-player.x)**2+(this.y-player.y)**2);
+                if(d < 30 && !player.isDashing) { 
+                    player.health -= (this.type === 'bullet' ? 4 : 3); 
+                    this.life=0; 
+                    document.getElementById('health').innerText = Math.max(0, Math.floor(player.health)); 
+                }
+            }
+            draw() {
+                ctx.save(); ctx.translate(this.x-camera.x, this.y-camera.y);
+                ctx.fillStyle = this.type === 'vodka' ? '#aed6f1' : '#f1c40f';
+                ctx.beginPath(); ctx.arc(0,0,this.type === 'bullet'?4:8,0,Math.PI*2); ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class Particle {
+            constructor(x,y,type) {
+                this.x=x; this.y=y; this.vx=(Math.random()-0.5)*10; this.vy=(Math.random()-0.5)*10;
+                this.life=1.0; 
+                const colors = { RUSSIA:'#d52b1e', JAPAN:'#bc002d', USA:'#3c3b6e', POLAND:'#dc143c', UK:'#00247d', FRANCE:'#0055a4' };
+                this.color = colors[type] || '#fff';
+            }
+            update() { this.x+=this.vx; this.y+=this.vy; this.life-=0.04; }
+            draw() { ctx.globalAlpha=this.life; ctx.fillStyle=this.color; ctx.fillRect(this.x-camera.x, this.y-camera.y, 6, 6); ctx.globalAlpha=1; }
+        }
+
+        const player = new Player();
+        const camera = { x: 0, y: 0 };
+        const enemies = [];
+        const particles = [];
+        const projectiles = [];
+
+        function gameLoop(time) {
+            if (!gameActive) return;
+            const dt = time - lastTime;
+            lastTime = time;
+
+            if (!isPaused) {
+                ctx.clearRect(0,0,canvas.width,canvas.height);
+                
+                camera.x += (player.x - canvas.width/2 - camera.x) * 0.15;
+                camera.y += (player.y - canvas.height/2 - camera.y) * 0.15;
+
+                ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+                for(let x = -camera.x % 100; x < canvas.width; x += 100) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+                for(let y = -camera.y % 100; y < canvas.height; y += 100) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+
+                player.update();
+                player.draw();
+
+                spawnTimer += dt;
+                if (spawnTimer > 1100) {
+                    const countryList = ['USA', 'RUSSIA', 'FRANCE', 'JAPAN', 'POLAND', 'UK'];
+                    const t = countryList[Math.floor(Math.random() * countryList.length)];
+                    const ang = Math.random()*Math.PI*2;
+                    enemies.push(new Enemy(player.x+Math.cos(ang)*900, player.y+Math.sin(ang)*900, t));
+                    spawnTimer = 0;
+                }
+
+                for(let i=enemies.length-1; i>=0; i--) {
+                    enemies[i].update(); enemies[i].draw();
+                    if(enemies[i].hp <= 0) { 
+                        const pts = enemies[i].points;
+                        score += pts; 
+                        createScorePop(enemies[i].x, enemies[i].y, pts);
+                        enemies.splice(i,1); 
+                        document.getElementById('score').innerText = score; 
+                    }
+                }
+                for(let i=projectiles.length-1; i>=0; i--) {
+                    projectiles[i].update(); projectiles[i].draw();
+                    if(projectiles[i].life <= 0) projectiles.splice(i,1);
+                }
+                for(let i=particles.length-1; i>=0; i--) {
+                    particles[i].update(); particles[i].draw();
+                    if(particles[i].life <= 0) particles.splice(i,1);
+                }
+
+                if (player.health <= 0) {
+                    gameActive = false;
+                    document.getElementById('game-over').classList.remove('hidden');
+                    document.getElementById('final-score').innerText = score;
+                }
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        document.getElementById('start-btn').onclick = () => {
+            document.getElementById('start-screen').style.display='none';
+            gameActive = true; lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
+
+```
