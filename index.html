@@ -1,25 +1,35 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Countryball Attack</title>
+    <title>Countryball Attack v1.2.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Lock down scrolling, rubber-banding, and pull-to-refresh */
+        /* Lock down scrolling, rubber-banding, and pull-to-refresh completely */
         html, body { 
             margin: 0; 
             padding: 0;
+            width: 100%;
+            height: 100%;
             overflow: hidden; 
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             background-color: #1a1a1a; 
             font-family: 'Courier New', Courier, monospace; 
             touch-action: none; 
             overscroll-behavior: none;
+            overscroll-behavior-y: none;
+            -webkit-overscroll-behavior: none;
             -webkit-user-select: none;
             user-select: none;
         }
         
-        #gameCanvas { display: block; background-color: #2c3e50; image-rendering: pixelated; }
+        #gameCanvas { display: block; background-color: #2c3e50; image-rendering: pixelated; width: 100%; height: 100%; }
         .ui-panel { position: absolute; color: white; pointer-events: none; text-shadow: 3px 3px 0px #000; z-index: 10; width: 100%; padding: 15px; box-sizing: border-box; display: flex; justify-content: space-between; align-items: flex-start; }
         
         /* Raised Mobile Controls higher up to avoid Android Navigation Bar */
@@ -58,7 +68,7 @@
 
         .shop-btn { pointer-events: auto; background: #f1c40f; color: black; padding: 5px 15px; font-weight: 900; border-bottom: 4px solid #b7950b; font-size: 0.9rem; }
         #dash-timer { font-size: 1.2rem; font-weight: 900; }
-        .version-tag { position: fixed; bottom: 5px; left: 5px; color: rgba(255,255,255,0.2); font-size: 0.6rem; z-index: 5; pointer-events: none; }
+        .version-tag { position: fixed; bottom: 5px; left: 5px; color: rgba(255,255,255,0.3); font-size: 0.65rem; z-index: 5; pointer-events: none; font-weight: bold; }
         
         /* Floating Text Effect */
         .score-pop { position: absolute; color: #f1c40f; font-weight: 900; pointer-events: none; animation: floatUp 1s ease-out forwards; z-index: 20; text-shadow: 2px 2px 0 #000; }
@@ -80,7 +90,7 @@
         </div>
     </div>
 
-    <div class="version-tag">v1.0 BETA</div>
+    <div class="version-tag">v1.2.1</div>
 
     <!-- Shop Overlay -->
     <div id="shop-overlay" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center">
@@ -100,7 +110,7 @@
         <div class="text-center text-white p-8 md:p-12 border-8 border-white bg-blue-900 shadow-2xl max-w-lg mx-4">
             <h2 class="text-4xl md:text-6xl font-black mb-4 italic leading-tight">COUNTRYBALL ATTACK</h2>
             <p class="text-yellow-400 font-bold mb-2">A guy named Manigos fighting off countryballs</p>
-            <p class="mb-6 tracking-tighter text-white/70 uppercase text-xs md:text-sm">Made by Plunger Teams • v1.0 Beta</p>
+            <p class="mb-6 tracking-tighter text-white/70 uppercase text-xs md:text-sm">Made by Plunger Teams • v1.2.1</p>
 
             <div class="flex flex-col gap-4 items-center justify-center">
                 <button id="start-btn" class="w-full bg-white text-black px-12 py-4 text-2xl font-black hover:bg-yellow-400 transition-all active:scale-95">START MISSION</button>
@@ -114,7 +124,7 @@
         </div>
     </div>
 
-    <!-- Game Over -->
+    <!-- Game Over Screen -->
     <div id="game-over" class="absolute inset-0 flex items-center justify-center bg-red-900 bg-opacity-95 z-30 hidden">
         <div class="text-center text-white p-6">
             <h2 class="text-6xl md:text-8xl font-black mb-4">DEFEATED</h2>
@@ -136,6 +146,15 @@
     </div>
 
     <script>
+        // Completely disable default swipe-down pull-to-refresh & browser gesture navigation
+        document.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+
+        document.addEventListener('gesturestart', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const WORLD_SIZE = 5000;
@@ -205,7 +224,6 @@
         const jContainer = document.getElementById('joystick-container');
         const jKnob = document.getElementById('joystick-knob');
         
-        // Touch handling with touch identifier fixes to prevent touch-sticking/freezing
         jContainer.addEventListener('touchstart', e => {
             e.preventDefault();
             if (joystick.active) return;
@@ -599,7 +617,7 @@
             lastTime = time;
 
             if (!isPaused) {
-                ctx.clearRect(0,0,canvas.width,canvas.height);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
                 camera.x += (player.x - canvas.width/2 - camera.x) * 0.15;
                 camera.y += (player.y - canvas.height/2 - camera.y) * 0.15;
@@ -656,3 +674,4 @@
     </script>
 </body>
 </html>
+```
